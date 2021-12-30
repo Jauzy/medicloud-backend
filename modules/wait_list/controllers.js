@@ -5,6 +5,7 @@ const Pasien = db.pasien;
 const RekamMedis = db.rekam_medis;
 const { Op } = require("sequelize");
 const Pengaturan = db.pengaturan;
+const Logs = db.logs
 
 const error = require('../../helpers/errors')
 const cleanObj = require('../../helpers/cleanObj') 
@@ -50,8 +51,23 @@ exports.create = (req, res, next) => {
         });
 }
 
-exports.update = async (req, res, next) => { 
-    if(req.body.wl_status == 'periksa'){
+exports.update = async (req, res, next) => {
+    if(req.body.wl_status == 'wait' && req.data.wl_status == 'periksa'){
+        await req.data.update(req.body)
+            .then(data => { 
+                req.log = {
+                    log_src: 'wait_list',
+                    log_title: `Pasien dengan No. Kartu ${data.wl_pasien_id} dibatalkan pemeriksaannya`,
+                    log_subtitle: 'Dikembalikan ke ruang tunggu',
+                    log_date: (new Date()).toLocaleString()
+                }
+                next()  
+            })
+            .catch(err => {
+                error(res, 500, err)
+            });
+    }
+    else if(req.body.wl_status == 'periksa'){
         Pengaturan.findOne({
             where: {
                 pengaturan_key: 'fee_berobat'
@@ -69,23 +85,24 @@ exports.update = async (req, res, next) => {
                     });
             })
         })
-    } else
-    await req.data.update(req.body)
-        .then(data => {
-            if(data.wl_status == 'done'){
-                req.log = {
-                    log_src: 'wait_list',
-                    log_title: `Pasien dengan No. Kartu ${data.wl_pasien_id} telah selesai berobat`,
-                    log_subtitle: 'Lanjut ke pasien berikutnya',
-                    log_date: (new Date()).toLocaleString()
+    } else {
+        await req.data.update(req.body)
+            .then(data => {
+                if(data.wl_status == 'done'){
+                    req.log = {
+                        log_src: 'wait_list',
+                        log_title: `Pasien dengan No. Kartu ${data.wl_pasien_id} telah selesai berobat`,
+                        log_subtitle: 'Lanjut ke pasien berikutnya',
+                        log_date: (new Date()).toLocaleString()
+                    }
+                    next()
                 }
-                next()
-            }
-            res.send({ data });
-        })
-        .catch(err => {
-            error(res, 500, err)
-        });
+                res.send({ data });
+            })
+            .catch(err => {
+                error(res, 500, err)
+            });
+    }
 }
 
 exports.delete = async (req, res) => {

@@ -6,7 +6,9 @@ const error = require('../../helpers/errors')
 const cleanObj = require('../../helpers/cleanObj') 
 
 exports.getAll = (req, res) => {
-    Logs.findAll({include: req.includes})
+    Logs.findAll({include: req.includes, order: [
+        ['log_id', 'DESC'], 
+    ],})
         .then(datas => {
             res.send(datas)
         }).catch(err => {
